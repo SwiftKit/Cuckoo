@@ -26,6 +26,11 @@ public struct Tokenizer {
             let structure = try Structure(file: file)
 
             let declarations = tokenize(structure.dictionary[Key.Substructure.rawValue] as? [SourceKitRepresentable] ?? [])
+                .flatMap { declaration -> [Token] in
+                    guard let parent = declaration as? ParentToken else { return [declaration] }
+                    return [parent] + parent.adoptAllYoungerGenerations()
+                }
+
             let imports = tokenize(imports: declarations)
 
             return FileRepresentation(sourceFile: file, declarations: declarations + imports)
@@ -142,8 +147,29 @@ public struct Tokenizer {
                 attributes: attributes,
                 genericParameters: fixedGenericParameters)
 
+        case Kinds.StructDeclaration.rawValue:
+            let subtokens = tokenize(dictionary[Key.Substructure.rawValue] as? [SourceKitRepresentable] ?? [])
+            let children = subtokens.only(ContainerToken.self)
+
+            return StructDeclaration(
+                name: name,
+                accessibility: accessibility,
+                range: range!,
+                nameRange: nameRange!,
+                bodyRange: bodyRange!,
+                children: children)
+            
         case Kinds.ExtensionDeclaration.rawValue:
-            return ExtensionDeclaration(range: range!)
+            let subtokens = tokenize(dictionary[Key.Substructure.rawValue] as? [SourceKitRepresentable] ?? [])
+            let children = subtokens.only(ContainerToken.self)
+
+            return ExtensionDeclaration(
+                name: name,
+                accessibility: accessibility,
+                range: range!,
+                nameRange: nameRange!,
+                bodyRange: bodyRange!,
+                children: children)
 
         case Kinds.InstanceVariable.rawValue:
             let setterAccessibility = (dictionary[Key.SetterAccessibility.rawValue] as? String).flatMap(Accessibility.init)
